@@ -77,10 +77,15 @@ def fuzzy_search_level(search,search_term,level):
 
 
 def fuzzy_search(search,search_terms,level):
-    num_cores = multiprocessing.cpu_count() - 1
+    text = search
+    
+    # num_cores = multiprocessing.cpu_count() - 1
+    num_cores = max(int(multiprocessing.cpu_count()//2),1)
+    
+    
     results = [{"search":search,"search_term":search_term,"level":level} for search_term in search_terms]
     with WorkerPool(n_jobs=num_cores,daemon=False) as pool:
-        results = pool.map(fuzzy_search_level, results, progress_bar=True, chunk_size=1)
+        results = pool.map(fuzzy_search_level, results, progress_bar=False, )
     return results
 
   
@@ -91,17 +96,19 @@ def kmp_searches(search,search_term):
     return {"full_matches":results,"search":search,"search_term":search_term}
 
 def text_search(text,search_term):
-
+    
     results = [{"search":text,"search_term":search_term[i]} for i in range(len(search_term))]
-    num_cores = multiprocessing.cpu_count() - 1
+    # num_cores = multiprocessing.cpu_count() - 1
+    num_cores = max(int(multiprocessing.cpu_count()//2),1)
+    
     
     with WorkerPool(n_jobs=num_cores,daemon=False) as pool:
-        results = pool.map(kmp_searches, results, progress_bar=True, chunk_size=1)
+        results = pool.map(kmp_searches, results, progress_bar=False, )
     
-    
-    return results
+    return {"results":results,"text":text}
 
 def flatten_list(nested_list):
+    
     flattened = []
     for item in nested_list:
         if isinstance(item, list):
@@ -110,36 +117,62 @@ def flatten_list(nested_list):
             flattened.append(item)
     return flattened
 def awesome_search(text,search_term,level=2):
+    
     text_chunks =  []
     
     for i in range(0,len(text),8):
         text_chunks.append({"text":text[i:min(i+8,len(text))]})
     # print(text_chunks)
-    num_cores = multiprocessing.cpu_count() - 1
+    # num_cores = multiprocessing.cpu_count() - 1
+    num_cores = max(int(multiprocessing.cpu_count()//2),1)
+    
+    
     with WorkerPool(n_jobs=num_cores,daemon=False) as pool:
-        results = pool.map(fuzzy_search_perm, text_chunks, progress_bar=True, chunk_size=1)
+        results = pool.map(fuzzy_search_perm, text_chunks, progress_bar=False, )
     results = [{"search":text,"search_terms":results[i],"level":level} for i in range(len(results))]
 
     with WorkerPool(n_jobs=num_cores,daemon=False) as pool:
-        results = pool.map(fuzzy_search, results, progress_bar=True, chunk_size=1)
+        results = pool.map(fuzzy_search, results, progress_bar=False, )
         
     results = flatten_list(results)
     # pprint(results)
-
+    
     results = [{"text":text,"search_term":search_term} for text in results]
     with WorkerPool(n_jobs=num_cores,daemon=False) as pool:
-        results = pool.map(text_search, results, progress_bar=True, chunk_size=1)
+        results = pool.map(text_search, results, progress_bar=False, )
+    merge_text = []
+    for result in results:merge_text.append(result["text"])
     
     
+    return {"results":results,"merge_text":merge_text}
+
+def scalable_search(para,search_term,level=2):
+    text = para
+    # print(text)
+    results =  []
+    num_cores = max(int(multiprocessing.cpu_count()//2),1)
+    # num_cores = multiprocessing.cpu_count() - 1
+    
+    
+    for i in range(0,len(text),22):
+        results.append({"text":text[i:min(i+22,len(text))],"search_term":search_term,"level":level})
+    # pprint(results)
+    with WorkerPool(n_jobs=num_cores,daemon=False) as pool:
+        results = pool.map(awesome_search, results, progress_bar=True )
+
     return results
+    
+    
+
 
 
 # if __name__ == "__main__":
-    
-#     para = "Hi my name is Prakhar!"
+#     para = "Hi my name is Prakhar!" # for faster execution on smaller text
+#     # para = "Hi my name is Prakhar!"*10 # for slower execution on larger text
 #     search_term = "Prakhar!"
+#     # para = search_term
 #     level = 1 # for faster execution
 #     # level = 2 # for slower execution
-#     results = awesome_search(para,search_term,level)
+#     results = scalable_search(para,search_term,level)
 #     pprint(results)
     
